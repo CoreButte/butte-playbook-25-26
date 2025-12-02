@@ -1,0 +1,1710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Butte Core Basketball Playbook</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Source Sans Pro', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        .bebas { font-family: 'Bebas Neue', sans-serif; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState } = React;
+        
+        const ChevronRight = () => (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+        );
+        
+        const Target = () => (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <circle cx="12" cy="12" r="6"></circle>
+                <circle cx="12" cy="12" r="2"></circle>
+            </svg>
+        );
+        
+        const AlertCircle = () => (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+        );
+        
+        const CheckCircle = () => (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+        );
+
+        // Basketball Court Component with proper proportions
+        // Court dimensions based on standard half-court: 50ft wide x 47ft long
+        // viewBox uses 100x94 units (2 units per foot)
+        const Court = ({ play }) => {
+            // Draw arrow with proper arrowhead
+            const drawArrow = (x1, y1, x2, y2, color, style = 'solid', curved = false) => {
+                const angle = Math.atan2(y2 - y1, x2 - x1);
+                const arrowLength = 3;
+                const arrowAngle = Math.PI / 6;
+                
+                const arrowX1 = x2 - arrowLength * Math.cos(angle - arrowAngle);
+                const arrowY1 = y2 - arrowLength * Math.sin(angle - arrowAngle);
+                const arrowX2 = x2 - arrowLength * Math.cos(angle + arrowAngle);
+                const arrowY2 = y2 - arrowLength * Math.sin(angle + arrowAngle);
+                
+                const dashArray = style === 'dashed' ? '4,3' : style === 'dotted' ? '2,2' : 'none';
+                
+                if (curved) {
+                    // Create curved path
+                    const midX = (x1 + x2) / 2;
+                    const midY = (y1 + y2) / 2;
+                    const perpX = -(y2 - y1) * 0.3;
+                    const perpY = (x2 - x1) * 0.3;
+                    const ctrlX = midX + perpX;
+                    const ctrlY = midY + perpY;
+                    
+                    return (
+                        <g>
+                            <path 
+                                d={`M ${x1} ${y1} Q ${ctrlX} ${ctrlY} ${x2} ${y2}`}
+                                fill="none"
+                                stroke={color} 
+                                strokeWidth="1.5"
+                                strokeDasharray={dashArray}
+                            />
+                            <polygon 
+                                points={`${x2},${y2} ${arrowX1},${arrowY1} ${arrowX2},${arrowY2}`}
+                                fill={color}
+                            />
+                        </g>
+                    );
+                }
+                
+                return (
+                    <g>
+                        <line 
+                            x1={x1} 
+                            y1={y1} 
+                            x2={x2} 
+                            y2={y2} 
+                            stroke={color} 
+                            strokeWidth="1.5"
+                            strokeDasharray={dashArray}
+                        />
+                        <polygon 
+                            points={`${x2},${y2} ${arrowX1},${arrowY1} ${arrowX2},${arrowY2}`}
+                            fill={color}
+                        />
+                    </g>
+                );
+            };
+            
+            // Draw dribble (wavy line)
+            const drawDribble = (x1, y1, x2, y2, color) => {
+                const dx = x2 - x1;
+                const dy = y2 - y1;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                const waves = Math.max(3, Math.floor(dist / 8));
+                const amp = 3;
+                
+                let path = `M ${x1} ${y1}`;
+                for (let i = 1; i <= waves; i++) {
+                    const t = i / waves;
+                    const px = x1 + dx * t;
+                    const py = y1 + dy * t;
+                    const perpX = -dy / dist * amp * (i % 2 === 0 ? 1 : -1);
+                    const perpY = dx / dist * amp * (i % 2 === 0 ? 1 : -1);
+                    const cpx = x1 + dx * (t - 0.5/waves) + perpX;
+                    const cpy = y1 + dy * (t - 0.5/waves) + perpY;
+                    path += ` Q ${cpx} ${cpy} ${px} ${py}`;
+                }
+                
+                const angle = Math.atan2(dy, dx);
+                const arrowLength = 3;
+                const arrowAngle = Math.PI / 6;
+                const arrowX1 = x2 - arrowLength * Math.cos(angle - arrowAngle);
+                const arrowY1 = y2 - arrowLength * Math.sin(angle - arrowAngle);
+                const arrowX2 = x2 - arrowLength * Math.cos(angle + arrowAngle);
+                const arrowY2 = y2 - arrowLength * Math.sin(angle + arrowAngle);
+                
+                return (
+                    <g>
+                        <path d={path} fill="none" stroke={color} strokeWidth="1.5" />
+                        <polygon 
+                            points={`${x2},${y2} ${arrowX1},${arrowY1} ${arrowX2},${arrowY2}`}
+                            fill={color}
+                        />
+                    </g>
+                );
+            };
+
+            return (
+                <svg viewBox="0 0 100 94" className="w-full h-full" style={{maxHeight: '450px', background: '#fff'}}>
+                    {/* Court outline */}
+                    <rect x="2" y="2" width="96" height="90" fill="#f5e6d3" stroke="#333" strokeWidth="1"/>
+                    
+                    {/* Three point line - arc portion */}
+                    {/* Arc radius: 19.75ft = 39.5 units from basket center at (50, 8) */}
+                    {/* Straight corners at 6 units from sideline */}
+                    <path 
+                        d="M 8 2 L 8 32 
+                           A 39.5 39.5 0 0 0 92 32
+                           L 92 2" 
+                        fill="none" 
+                        stroke="#333" 
+                        strokeWidth="1"
+                    />
+                    
+                    {/* Key/Paint area - 12ft wide (24 units), 19ft long (38 units) */}
+                    <rect x="38" y="2" width="24" height="38" fill="none" stroke="#333" strokeWidth="1"/>
+                    
+                    {/* Free throw lane marks (hash marks on sides of key) */}
+                    <line x1="38" y1="14" x2="35" y2="14" stroke="#333" strokeWidth="0.75"/>
+                    <line x1="62" y1="14" x2="65" y2="14" stroke="#333" strokeWidth="0.75"/>
+                    <line x1="38" y1="22" x2="35" y2="22" stroke="#333" strokeWidth="0.75"/>
+                    <line x1="62" y1="22" x2="65" y2="22" stroke="#333" strokeWidth="0.75"/>
+                    <line x1="38" y1="30" x2="35" y2="30" stroke="#333" strokeWidth="0.75"/>
+                    <line x1="62" y1="30" x2="65" y2="30" stroke="#333" strokeWidth="0.75"/>
+                    
+                    {/* Free throw circle - 6ft radius (12 units) */}
+                    {/* Top half solid, bottom half dashed */}
+                    <path 
+                        d="M 38 40 A 12 12 0 0 1 62 40" 
+                        fill="none" 
+                        stroke="#333" 
+                        strokeWidth="1"
+                    />
+                    <path 
+                        d="M 38 40 A 12 12 0 0 0 62 40" 
+                        fill="none" 
+                        stroke="#333" 
+                        strokeWidth="1"
+                        strokeDasharray="3,3"
+                    />
+                    
+                    {/* Restricted area arc (4ft = 8 units radius) */}
+                    <path 
+                        d="M 42 8 A 8 8 0 0 0 58 8" 
+                        fill="none" 
+                        stroke="#333" 
+                        strokeWidth="0.75"
+                    />
+                    
+                    {/* Backboard - 6ft wide (12 units), 4ft from baseline (8 units) */}
+                    <line x1="44" y1="8" x2="56" y2="8" stroke="#333" strokeWidth="2"/>
+                    
+                    {/* Rim/Basket */}
+                    <circle cx="50" cy="10" r="2" fill="none" stroke="#e65100" strokeWidth="1.5"/>
+                    
+                    {/* Center court circle (half shown) - 6ft radius */}
+                    <path 
+                        d="M 38 92 A 12 12 0 0 1 62 92" 
+                        fill="none" 
+                        stroke="#333" 
+                        strokeWidth="1"
+                    />
+                    
+                    {/* Half court line */}
+                    <line x1="2" y1="92" x2="98" y2="92" stroke="#333" strokeWidth="1"/>
+                    
+                    {/* Render movements */}
+                    {play && play.movements && play.movements.map((movement, i) => (
+                        <g key={`movement-${i}`}>
+                            {movement.type === 'pass' && drawArrow(
+                                movement.from.x, movement.from.y, 
+                                movement.to.x, movement.to.y, 
+                                '#fbbf24', movement.style || 'dashed'
+                            )}
+                            {movement.type === 'cut' && drawArrow(
+                                movement.from.x, movement.from.y, 
+                                movement.to.x, movement.to.y, 
+                                movement.color || '#333', movement.style || 'solid', true
+                            )}
+                            {movement.type === 'drive' && drawArrow(
+                                movement.from.x, movement.from.y, 
+                                movement.to.x, movement.to.y, 
+                                movement.color || '#333', 'solid', true
+                            )}
+                            {movement.type === 'dribble' && drawDribble(
+                                movement.from.x, movement.from.y, 
+                                movement.to.x, movement.to.y, 
+                                movement.color || '#333'
+                            )}
+                            {movement.type === 'flash' && drawArrow(
+                                movement.from.x, movement.from.y, 
+                                movement.to.x, movement.to.y, 
+                                movement.color || '#333', 'solid', true
+                            )}
+                            {movement.type === 'screen' && (
+                                <g>
+                                    <line 
+                                        x1={movement.at.x - 4} 
+                                        y1={movement.at.y} 
+                                        x2={movement.at.x + 4} 
+                                        y2={movement.at.y} 
+                                        stroke={movement.color || '#333'} 
+                                        strokeWidth="3"
+                                        strokeLinecap="round"
+                                    />
+                                </g>
+                            )}
+                            {movement.type === 'handoff' && (
+                                <circle cx={movement.at.x} cy={movement.at.y} r="3" fill="none" stroke="#fbbf24" strokeWidth="1.5"/>
+                            )}
+                            {movement.label && (
+                                <text 
+                                    x={movement.to ? movement.to.x + 4 : movement.at.x + 4} 
+                                    y={movement.to ? movement.to.y : movement.at.y} 
+                                    fontSize="6" 
+                                    fill="#333" 
+                                    fontWeight="bold"
+                                >
+                                    {movement.label}
+                                </text>
+                            )}
+                        </g>
+                    ))}
+                    
+                    {/* Render players */}
+                    {play && play.positions && Object.entries(play.positions).map(([player, pos]) => {
+                        const isHandler = pos.ball;
+                        return (
+                            <g key={player}>
+                                {/* Ball handler indicator */}
+                                {isHandler && (
+                                    <circle 
+                                        cx={pos.x} 
+                                        cy={pos.y} 
+                                        r="6" 
+                                        fill="none"
+                                        stroke="#333" 
+                                        strokeWidth="1"
+                                    />
+                                )}
+                                {/* Player circle */}
+                                <circle 
+                                    cx={pos.x} 
+                                    cy={pos.y} 
+                                    r="4.5" 
+                                    fill="#fff" 
+                                    stroke="#333" 
+                                    strokeWidth="1.5"
+                                />
+                                {/* Player number */}
+                                <text 
+                                    x={pos.x} 
+                                    y={pos.y + 2} 
+                                    textAnchor="middle" 
+                                    fontSize="6" 
+                                    fill="#333"
+                                    fontWeight="bold"
+                                >
+                                    {player}
+                                </text>
+                            </g>
+                        );
+                    })}
+                </svg>
+            );
+        };
+
+        const BasketballPlaybook = () => {
+            const [selectedDefense, setSelectedDefense] = useState(null);
+            const [selectedPlay, setSelectedPlay] = useState(null);
+
+            // 4-Out 1-In Base Positions (Jay Wright style):
+            // 1: Point guard at top of key (slot)
+            // 2: Off-guard at opposite slot  
+            // 3: Wing at foul line extended (left)
+            // 4: Wing at foul line extended (right)
+            // 5: Big at dunker spot or mid-post
+            
+            // Court coordinates (viewBox 0-100 x, 0-94 y):
+            // Baseline at y=2, Basket at y=10
+            // 3-point line at roughly y=45-55 at wings, y=70 at top
+            // Half court at y=92
+            
+            // Standard 4-out 1-in positions:
+            // 1: x=50, y=72 (top of key)
+            // 2: x=75, y=65 (right slot)
+            // 3: x=12, y=45 (left wing)
+            // 4: x=88, y=45 (right wing)
+            // 5: x=30, y=22 (dunker spot - weak side)
+
+            const playbook = {
+                "Basic Man to Man": {
+                    recognition: [
+                        "Each defender follows an offensive player on every cut",
+                        "Help is one step in, not fully sagged",
+                        "On ball pressure is standard"
+                    ],
+                    weakness: "Forced help rotations and closeouts",
+                    attacks: [
+                        {
+                            name: "Wing backdoor",
+                            purpose: "Punish ball pressure and overplay",
+                            action: "1 passes to 3 on wing. 3 lifts two steps, defender overplays. 3 cuts backdoor for layup.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 12, y: 45},
+                                4: {x: 88, y: 45},
+                                5: {x: 30, y: 22}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 18, y: 50}},
+                                {type: 'cut', from: {x: 12, y: 45}, to: {x: 18, y: 50}, color: '#333'},
+                                {type: 'cut', from: {x: 18, y: 50}, to: {x: 42, y: 15}, color: '#333', style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Ball screen middle",
+                            purpose: "Force switch or hedge, create driving lane",
+                            action: "5 sprints from dunker to set ball screen for 1. 1 attacks middle off screen. 5 rolls to rim.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 12, y: 45},
+                                4: {x: 88, y: 45},
+                                5: {x: 45, y: 62}
+                            },
+                            movements: [
+                                {type: 'screen', at: {x: 45, y: 62}, color: '#333'},
+                                {type: 'drive', from: {x: 50, y: 72}, to: {x: 50, y: 45}, color: '#333'},
+                                {type: 'cut', from: {x: 45, y: 62}, to: {x: 50, y: 18}, color: '#333', style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Spain action",
+                            purpose: "Punish hedge help with back screen",
+                            action: "5 screens for 1. As 1 comes off, 3 screens the defender guarding 5. 5 rolls free to rim.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 25, y: 55},
+                                4: {x: 88, y: 45},
+                                5: {x: 45, y: 62}
+                            },
+                            movements: [
+                                {type: 'screen', at: {x: 45, y: 62}, color: '#333'},
+                                {type: 'drive', from: {x: 50, y: 72}, to: {x: 35, y: 55}, color: '#333'},
+                                {type: 'screen', at: {x: 38, y: 52}, color: '#10b981'},
+                                {type: 'cut', from: {x: 45, y: 62}, to: {x: 50, y: 15}, color: '#333', style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "DHO wing",
+                            purpose: "Create advantage without heavy screening",
+                            action: "3 dribbles at 1 for handoff. 1 turns the corner and attacks downhill.",
+                            positions: {
+                                1: {x: 35, y: 68},
+                                2: {x: 75, y: 65},
+                                3: {x: 18, y: 50, ball: true},
+                                4: {x: 88, y: 45},
+                                5: {x: 30, y: 22}
+                            },
+                            movements: [
+                                {type: 'dribble', from: {x: 18, y: 50}, to: {x: 32, y: 62}, color: '#333'},
+                                {type: 'handoff', at: {x: 32, y: 62}},
+                                {type: 'drive', from: {x: 35, y: 68}, to: {x: 50, y: 40}, color: '#333'}
+                            ]
+                        },
+                        {
+                            name: "Weakside flare",
+                            purpose: "Open skip pass three",
+                            action: "4 sets flare screen for 2. 1 skips to 2 coming off flare for catch and shoot.",
+                            positions: {
+                                1: {x: 30, y: 70, ball: true},
+                                2: {x: 78, y: 62},
+                                3: {x: 12, y: 45},
+                                4: {x: 82, y: 50},
+                                5: {x: 30, y: 22}
+                            },
+                            movements: [
+                                {type: 'screen', at: {x: 78, y: 55}, color: '#333'},
+                                {type: 'cut', from: {x: 78, y: 62}, to: {x: 88, y: 48}, color: '#333'},
+                                {type: 'pass', from: {x: 30, y: 70}, to: {x: 88, y: 48}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Early post touch",
+                            purpose: "Collapse defense then kick",
+                            action: "3 enters to 5 posting on ball side block. 5 catches, draws help, kicks opposite to 2.",
+                            positions: {
+                                1: {x: 50, y: 72},
+                                2: {x: 75, y: 65},
+                                3: {x: 18, y: 50, ball: true},
+                                4: {x: 88, y: 45},
+                                5: {x: 38, y: 28}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 18, y: 50}, to: {x: 38, y: 28}},
+                                {type: 'pass', from: {x: 38, y: 28}, to: {x: 75, y: 65}, style: 'dashed'}
+                            ]
+                        }
+                    ],
+                    coaching: [
+                        "Use pace - make them defend multiple actions each possession",
+                        "Drive with two feet, stay under control to find open shooters",
+                        "Early post entry creates help rotations and open kickouts"
+                    ],
+                    redFlags: [
+                        "Holding the ball and letting defense recover",
+                        "Driving into congested paint when spacing is compromised"
+                    ]
+                },
+                "Inside Heavy Man with Two Bigs": {
+                    recognition: [
+                        "Both bigs stay parked in the paint",
+                        "Looks like a zone but defenders still track cutters"
+                    ],
+                    weakness: "Movement that forces bigs out of the paint",
+                    attacks: [
+                        {
+                            name: "Ball screen with slip",
+                            purpose: "Pull a big out of paint, create driving lane",
+                            action: "5 sets screen for 1 then slips early to short corner. 1 drives away from bigs toward open lane.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 12, y: 45},
+                                4: {x: 88, y: 45},
+                                5: {x: 45, y: 62}
+                            },
+                            movements: [
+                                {type: 'screen', at: {x: 45, y: 62}, color: '#333'},
+                                {type: 'cut', from: {x: 45, y: 62}, to: {x: 15, y: 25}, color: '#333', style: 'dashed'},
+                                {type: 'drive', from: {x: 50, y: 72}, to: {x: 72, y: 45}, color: '#333'}
+                            ]
+                        },
+                        {
+                            name: "Pin down into flare",
+                            purpose: "Force inside help, open perimeter",
+                            action: "4 sets pin down for 2. 2 reads - curl if free, flare if big helps.",
+                            positions: {
+                                1: {x: 35, y: 70, ball: true},
+                                2: {x: 80, y: 58},
+                                3: {x: 12, y: 45},
+                                4: {x: 75, y: 48},
+                                5: {x: 30, y: 22}
+                            },
+                            movements: [
+                                {type: 'screen', at: {x: 75, y: 52}, color: '#333'},
+                                {type: 'cut', from: {x: 80, y: 58}, to: {x: 68, y: 45}, color: '#333', label: 'curl'},
+                                {type: 'cut', from: {x: 80, y: 58}, to: {x: 90, y: 48}, color: '#333', style: 'dotted', label: 'flare'}
+                            ]
+                        },
+                        {
+                            name: "Quick post touch",
+                            purpose: "Engage both bigs, create rotation",
+                            action: "1 dumps to 5 at mid post. 5 looks middle first, then passes opposite wing.",
+                            positions: {
+                                1: {x: 35, y: 70, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 12, y: 45},
+                                4: {x: 88, y: 45},
+                                5: {x: 42, y: 38}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 35, y: 70}, to: {x: 42, y: 38}},
+                                {type: 'pass', from: {x: 42, y: 38}, to: {x: 88, y: 45}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Backdoor series",
+                            purpose: "Punish heavy sag and ball watching",
+                            action: "3 lifts toward ball. 1 dribbles at 3. 3 plants and cuts backdoor.",
+                            positions: {
+                                1: {x: 40, y: 70, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 20, y: 52},
+                                4: {x: 88, y: 45},
+                                5: {x: 30, y: 22}
+                            },
+                            movements: [
+                                {type: 'cut', from: {x: 20, y: 52}, to: {x: 25, y: 58}, color: '#333'},
+                                {type: 'dribble', from: {x: 40, y: 70}, to: {x: 28, y: 60}, color: '#333'},
+                                {type: 'cut', from: {x: 25, y: 58}, to: {x: 42, y: 18}, color: '#333', style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Double gap creation",
+                            purpose: "Create a wide driving lane",
+                            action: "2 lifts to open slot. 4 attacks the gap created by 2's movement.",
+                            positions: {
+                                1: {x: 35, y: 70, ball: true},
+                                2: {x: 68, y: 72},
+                                3: {x: 12, y: 45},
+                                4: {x: 82, y: 50},
+                                5: {x: 30, y: 22}
+                            },
+                            movements: [
+                                {type: 'cut', from: {x: 68, y: 72}, to: {x: 62, y: 78}, color: '#333'},
+                                {type: 'pass', from: {x: 35, y: 70}, to: {x: 82, y: 50}},
+                                {type: 'drive', from: {x: 82, y: 50}, to: {x: 62, y: 28}, color: '#333'}
+                            ]
+                        },
+                        {
+                            name: "Skip and attack closeout",
+                            purpose: "Create rhythm when threes aren't falling",
+                            action: "Skip from 3 to 4. 4 shot fakes, one dribble pull-up or drives closeout.",
+                            positions: {
+                                1: {x: 50, y: 72},
+                                2: {x: 75, y: 65},
+                                3: {x: 12, y: 45, ball: true},
+                                4: {x: 88, y: 45},
+                                5: {x: 30, y: 22}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 12, y: 45}, to: {x: 88, y: 45}, style: 'dashed'},
+                                {type: 'drive', from: {x: 88, y: 45}, to: {x: 78, y: 35}, color: '#333'}
+                            ]
+                        }
+                    ],
+                    coaching: [
+                        "Attack from the backside, not straight at their bigs",
+                        "Use shot fakes to move defenders before driving"
+                    ],
+                    redFlags: [
+                        "Driving directly into waiting bigs in the paint",
+                        "Forcing threes without creating rhythm through ball movement"
+                    ]
+                },
+                "2-3 Zone": {
+                    recognition: [
+                        "Two defenders at free throw line extended",
+                        "Three defenders across the baseline",
+                        "No one follows cutters through the zone"
+                    ],
+                    weakness: "Gaps at high post and short corner",
+                    attacks: [
+                        {
+                            name: "High post flash",
+                            purpose: "Attack the middle gap",
+                            action: "5 flashes from baseline to free throw line. Catches, pivots, hits wing or short corner.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 12, y: 45},
+                                4: {x: 88, y: 45},
+                                5: {x: 50, y: 42}
+                            },
+                            movements: [
+                                {type: 'flash', from: {x: 50, y: 22}, to: {x: 50, y: 42}, color: '#333'},
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 50, y: 42}},
+                                {type: 'pass', from: {x: 50, y: 42}, to: {x: 12, y: 45}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Overload weak side",
+                            purpose: "Create numbers advantage",
+                            action: "3 and 5 stack weak side. Ball reverses quickly to find open shooter.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 20, y: 48},
+                                4: {x: 88, y: 45},
+                                5: {x: 25, y: 25}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 75, y: 65}},
+                                {type: 'pass', from: {x: 75, y: 65}, to: {x: 88, y: 45}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Corner drift",
+                            purpose: "Exploit corner weakness",
+                            action: "Ball swings. 3 drifts to corner for quick catch and shoot three.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 8, y: 18},
+                                4: {x: 88, y: 45},
+                                5: {x: 50, y: 30}
+                            },
+                            movements: [
+                                {type: 'cut', from: {x: 18, y: 45}, to: {x: 8, y: 18}, color: '#333'},
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 8, y: 18}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Short corner dive",
+                            purpose: "Attack behind the zone",
+                            action: "5 dives behind zone from dunker spot. 3 hits 5 for layup opportunity.",
+                            positions: {
+                                1: {x: 50, y: 72},
+                                2: {x: 75, y: 65},
+                                3: {x: 18, y: 50, ball: true},
+                                4: {x: 88, y: 45},
+                                5: {x: 22, y: 18}
+                            },
+                            movements: [
+                                {type: 'cut', from: {x: 35, y: 22}, to: {x: 22, y: 18}, color: '#333', style: 'dashed'},
+                                {type: 'pass', from: {x: 18, y: 50}, to: {x: 22, y: 18}}
+                            ]
+                        },
+                        {
+                            name: "Guard penetrate and dish",
+                            purpose: "Engage the middle",
+                            action: "1 attacks seam between top two defenders. Kicks to open shooter on rotation.",
+                            positions: {
+                                1: {x: 45, y: 68, ball: true},
+                                2: {x: 70, y: 68},
+                                3: {x: 12, y: 45},
+                                4: {x: 88, y: 45},
+                                5: {x: 50, y: 25}
+                            },
+                            movements: [
+                                {type: 'drive', from: {x: 45, y: 68}, to: {x: 48, y: 48}, color: '#333'},
+                                {type: 'pass', from: {x: 48, y: 48}, to: {x: 88, y: 45}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Ball reversal to corner three",
+                            purpose: "Create rhythm three",
+                            action: "Reverse ball twice. Corner shooter relocates for open look.",
+                            positions: {
+                                1: {x: 35, y: 70, ball: true},
+                                2: {x: 68, y: 70},
+                                3: {x: 8, y: 22},
+                                4: {x: 88, y: 45},
+                                5: {x: 50, y: 28}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 35, y: 70}, to: {x: 68, y: 70}},
+                                {type: 'pass', from: {x: 68, y: 70}, to: {x: 88, y: 45}},
+                                {type: 'pass', from: {x: 88, y: 45}, to: {x: 92, y: 18}, style: 'dashed'}
+                            ]
+                        }
+                    ],
+                    coaching: [
+                        "Touch the middle of the zone every possession",
+                        "Ball reversal forces zone to shift and creates gaps"
+                    ],
+                    redFlags: [
+                        "Staying on one side of the floor",
+                        "Settling for contested threes without working the zone"
+                    ]
+                },
+                "3-2 Zone": {
+                    recognition: [
+                        "Three defenders across the free throw line",
+                        "Two defenders low on each block",
+                        "Perimeter is crowded but corners are open"
+                    ],
+                    weakness: "Corners and elbows",
+                    attacks: [
+                        {
+                            name: "Elbow flash",
+                            purpose: "Collapse the top three",
+                            action: "5 flashes to left elbow. Catches, draws middle defender, hits 4 cutting opposite.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 20, y: 52},
+                                4: {x: 82, y: 48},
+                                5: {x: 35, y: 45}
+                            },
+                            movements: [
+                                {type: 'flash', from: {x: 50, y: 25}, to: {x: 35, y: 45}, color: '#333'},
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 35, y: 45}},
+                                {type: 'cut', from: {x: 82, y: 48}, to: {x: 68, y: 32}, color: '#333'},
+                                {type: 'pass', from: {x: 35, y: 45}, to: {x: 68, y: 32}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Corner flood",
+                            purpose: "Attack corner weakness",
+                            action: "3 runs baseline to weak corner. 1 skips for open three.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 92, y: 18},
+                                4: {x: 78, y: 48},
+                                5: {x: 50, y: 28}
+                            },
+                            movements: [
+                                {type: 'cut', from: {x: 18, y: 45}, to: {x: 92, y: 18}, color: '#333', style: 'dashed'},
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 92, y: 18}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Ball screen on middle",
+                            purpose: "Attack seams",
+                            action: "5 screens middle defender for 1. 1 attacks seam toward elbow.",
+                            positions: {
+                                1: {x: 48, y: 70, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 12, y: 45},
+                                4: {x: 88, y: 45},
+                                5: {x: 50, y: 58}
+                            },
+                            movements: [
+                                {type: 'screen', at: {x: 50, y: 58}, color: '#333'},
+                                {type: 'drive', from: {x: 48, y: 70}, to: {x: 55, y: 42}, color: '#333'}
+                            ]
+                        },
+                        {
+                            name: "High-low from elbow",
+                            purpose: "Interior scoring",
+                            action: "5 catches at elbow. 4 ducks in low. 5 hits 4 for layup.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 12, y: 45},
+                                4: {x: 58, y: 28},
+                                5: {x: 35, y: 48}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 35, y: 48}},
+                                {type: 'cut', from: {x: 88, y: 45}, to: {x: 58, y: 28}, color: '#333'},
+                                {type: 'pass', from: {x: 35, y: 48}, to: {x: 58, y: 28}}
+                            ]
+                        },
+                        {
+                            name: "Wing baseline cut",
+                            purpose: "Backdoor cutting",
+                            action: "4 cuts baseline as low defender is occupied by 5. 5 feeds 4 for layup.",
+                            positions: {
+                                1: {x: 50, y: 72},
+                                2: {x: 75, y: 65},
+                                3: {x: 12, y: 45},
+                                4: {x: 72, y: 22},
+                                5: {x: 40, y: 32, ball: true}
+                            },
+                            movements: [
+                                {type: 'cut', from: {x: 88, y: 45}, to: {x: 72, y: 22}, color: '#333', style: 'dashed'},
+                                {type: 'pass', from: {x: 40, y: 32}, to: {x: 72, y: 22}}
+                            ]
+                        },
+                        {
+                            name: "Guard slide for gap",
+                            purpose: "Find open windows",
+                            action: "2 slides wide to receive skip pass into open gap.",
+                            positions: {
+                                1: {x: 28, y: 70, ball: true},
+                                2: {x: 88, y: 62},
+                                3: {x: 12, y: 45},
+                                4: {x: 78, y: 48},
+                                5: {x: 50, y: 25}
+                            },
+                            movements: [
+                                {type: 'cut', from: {x: 72, y: 68}, to: {x: 88, y: 62}, color: '#333'},
+                                {type: 'pass', from: {x: 28, y: 70}, to: {x: 88, y: 62}, style: 'dashed'}
+                            ]
+                        }
+                    ],
+                    coaching: [
+                        "Attack elbows and short corners",
+                        "Use baseline cuts when low defenders focus on post"
+                    ],
+                    redFlags: [
+                        "Standing shooters who don't relocate",
+                        "Forcing perimeter shots against packed top line"
+                    ]
+                },
+                "1-3-1 Zone": {
+                    recognition: [
+                        "Point defender at top",
+                        "Three across the free throw line",
+                        "One defender at baseline"
+                    ],
+                    weakness: "Corner and wing gaps",
+                    attacks: [
+                        {
+                            name: "Wing entry to corner",
+                            purpose: "Attack corner gap",
+                            action: "1 passes to 3. 3 immediately hits 4 diving to corner. Low defender can't cover both.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 18, y: 52},
+                                4: {x: 8, y: 18},
+                                5: {x: 50, y: 28}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 18, y: 52}},
+                                {type: 'cut', from: {x: 88, y: 45}, to: {x: 8, y: 18}, color: '#333', style: 'dashed'},
+                                {type: 'pass', from: {x: 18, y: 52}, to: {x: 8, y: 18}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "High post seal",
+                            purpose: "Create post scoring",
+                            action: "5 seals middle defender at elbow. 1 enters for quick score or kickout.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 12, y: 45},
+                                4: {x: 88, y: 45},
+                                5: {x: 50, y: 42}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 50, y: 42}},
+                                {type: 'pass', from: {x: 50, y: 42}, to: {x: 12, y: 45}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Skip pass rhythm",
+                            purpose: "Force long rotations",
+                            action: "1 skips to 4 on weak wing. 4 catches in rhythm for three or drive.",
+                            positions: {
+                                1: {x: 35, y: 70, ball: true},
+                                2: {x: 68, y: 68},
+                                3: {x: 12, y: 45},
+                                4: {x: 88, y: 48},
+                                5: {x: 50, y: 28}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 35, y: 70}, to: {x: 88, y: 48}, style: 'dashed'},
+                                {type: 'drive', from: {x: 88, y: 48}, to: {x: 72, y: 35}, color: '#333'}
+                            ]
+                        },
+                        {
+                            name: "Baseline runner",
+                            purpose: "Attack baseline gap",
+                            action: "3 runs baseline from wing to opposite corner. Single defender can't cover.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 92, y: 18},
+                                4: {x: 88, y: 45},
+                                5: {x: 50, y: 28}
+                            },
+                            movements: [
+                                {type: 'cut', from: {x: 12, y: 45}, to: {x: 92, y: 18}, color: '#333', style: 'dashed'},
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 92, y: 18}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Point attack",
+                            purpose: "Attack point defender one-on-one",
+                            action: "1 attacks point defender. Wings space to corners for kick options.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 92, y: 18},
+                                3: {x: 8, y: 18},
+                                4: {x: 88, y: 45},
+                                5: {x: 50, y: 28}
+                            },
+                            movements: [
+                                {type: 'drive', from: {x: 50, y: 72}, to: {x: 50, y: 52}, color: '#333'},
+                                {type: 'pass', from: {x: 50, y: 52}, to: {x: 8, y: 18}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Wing loop to open window",
+                            purpose: "Find gaps in rotation",
+                            action: "4 loops from wing behind the zone. 5 catches and finds 4 in open window.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 12, y: 45},
+                                4: {x: 68, y: 28},
+                                5: {x: 50, y: 42}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 50, y: 42}},
+                                {type: 'cut', from: {x: 88, y: 45}, to: {x: 68, y: 28}, color: '#333'},
+                                {type: 'pass', from: {x: 50, y: 42}, to: {x: 68, y: 28}, style: 'dashed'}
+                            ]
+                        }
+                    ],
+                    coaching: [
+                        "Attack gaps not players",
+                        "Quick ball movement exposes single baseline defender"
+                    ],
+                    redFlags: [
+                        "Trying to pass through the zone instead of around it",
+                        "Letting the point defender disrupt rhythm"
+                    ]
+                },
+                "1-2-2 Zone": {
+                    recognition: [
+                        "Point defender at top",
+                        "Two at elbow level",
+                        "Two at baseline corners"
+                    ],
+                    weakness: "High post and wing gaps",
+                    attacks: [
+                        {
+                            name: "Wing attack",
+                            purpose: "Attack wing gap",
+                            action: "1 passes to 3 in gap between top and corner defenders. 3 catches with space to operate.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 18, y: 50},
+                                4: {x: 88, y: 45},
+                                5: {x: 50, y: 28}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 18, y: 50}},
+                                {type: 'drive', from: {x: 18, y: 50}, to: {x: 35, y: 35}, color: '#333'}
+                            ]
+                        },
+                        {
+                            name: "High post iso",
+                            purpose: "Attack middle gap",
+                            action: "5 catches at free throw line in the gap. Has options: score, hit short corner, or skip weak.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 12, y: 45},
+                                4: {x: 88, y: 45},
+                                5: {x: 50, y: 42}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 50, y: 42}},
+                                {type: 'pass', from: {x: 50, y: 42}, to: {x: 12, y: 45}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Overload corner",
+                            purpose: "Create numbers advantage",
+                            action: "3 and 5 overload one side. Ball moves quickly to find open shooter.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 18, y: 50},
+                                4: {x: 88, y: 45},
+                                5: {x: 22, y: 25}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 18, y: 50}},
+                                {type: 'pass', from: {x: 18, y: 50}, to: {x: 22, y: 25}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Ball reversal three",
+                            purpose: "Create rhythm shot",
+                            action: "Reverse ball quickly. 4 catches on swing with defender rotating late.",
+                            positions: {
+                                1: {x: 35, y: 70, ball: true},
+                                2: {x: 68, y: 68},
+                                3: {x: 12, y: 45},
+                                4: {x: 88, y: 48},
+                                5: {x: 50, y: 28}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 35, y: 70}, to: {x: 68, y: 68}},
+                                {type: 'pass', from: {x: 68, y: 68}, to: {x: 88, y: 48}}
+                            ]
+                        },
+                        {
+                            name: "Baseline seal",
+                            purpose: "Post scoring",
+                            action: "5 seals baseline defender. 3 enters for quick post score.",
+                            positions: {
+                                1: {x: 50, y: 72},
+                                2: {x: 75, y: 65},
+                                3: {x: 18, y: 50, ball: true},
+                                4: {x: 88, y: 45},
+                                5: {x: 38, y: 22}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 18, y: 50}, to: {x: 38, y: 22}}
+                            ]
+                        },
+                        {
+                            name: "Skip to weak corner",
+                            purpose: "Force maximum rotation",
+                            action: "1 skips to 4 who has drifted to weak corner. Long rotation creates open shot.",
+                            positions: {
+                                1: {x: 35, y: 70, ball: true},
+                                2: {x: 68, y: 68},
+                                3: {x: 12, y: 45},
+                                4: {x: 92, y: 18},
+                                5: {x: 50, y: 28}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 35, y: 70}, to: {x: 92, y: 18}, style: 'dashed'}
+                            ]
+                        }
+                    ],
+                    coaching: [
+                        "The middle is vulnerable, touch it early",
+                        "Quick ball reversal beats rotation"
+                    ],
+                    redFlags: [
+                        "Playing only around the perimeter",
+                        "Single-side offense letting zone recover"
+                    ]
+                },
+                "Box and One": {
+                    recognition: [
+                        "Four defenders in box zone",
+                        "One defender face-guarding your best scorer",
+                        "Zone defenders may sag extra to help on face-guard slips"
+                    ],
+                    weakness: "Four vs three advantage when best scorer is away from ball",
+                    attacks: [
+                        {
+                            name: "Star clear out",
+                            purpose: "Create 4-on-3 advantage",
+                            action: "2 (face-guarded player) clears to weak corner. Now it's 4-on-3 for ball side.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 92, y: 18},
+                                3: {x: 18, y: 50},
+                                4: {x: 82, y: 48},
+                                5: {x: 50, y: 28}
+                            },
+                            movements: [
+                                {type: 'cut', from: {x: 75, y: 65}, to: {x: 92, y: 18}, color: '#333'},
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 18, y: 50}},
+                                {type: 'drive', from: {x: 18, y: 50}, to: {x: 38, y: 32}, color: '#333'}
+                            ]
+                        },
+                        {
+                            name: "Screen the chaser",
+                            purpose: "Free your best scorer",
+                            action: "5 sets screen for 2 (face-guarded). 2 curls hard off screen for catch and shoot.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 68, y: 48},
+                                3: {x: 12, y: 45},
+                                4: {x: 88, y: 45},
+                                5: {x: 55, y: 52}
+                            },
+                            movements: [
+                                {type: 'screen', at: {x: 55, y: 52}, color: '#333'},
+                                {type: 'cut', from: {x: 72, y: 58}, to: {x: 68, y: 48}, color: '#333'},
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 68, y: 48}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Attack the zone",
+                            purpose: "Score without star involvement",
+                            action: "1 attacks seam of box zone. 3 and 4 space to corners for kick options.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 92, y: 55},
+                                3: {x: 8, y: 18},
+                                4: {x: 92, y: 18},
+                                5: {x: 50, y: 28}
+                            },
+                            movements: [
+                                {type: 'drive', from: {x: 50, y: 72}, to: {x: 50, y: 48}, color: '#333'},
+                                {type: 'pass', from: {x: 50, y: 48}, to: {x: 8, y: 18}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Back screen for star",
+                            purpose: "Create backdoor opportunity",
+                            action: "5 sets back screen for 2. 2 cuts backdoor, chaser can't follow through screen.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 55, y: 18},
+                                3: {x: 12, y: 45},
+                                4: {x: 88, y: 45},
+                                5: {x: 58, y: 38}
+                            },
+                            movements: [
+                                {type: 'screen', at: {x: 58, y: 38}, color: '#333'},
+                                {type: 'cut', from: {x: 72, y: 58}, to: {x: 55, y: 18}, color: '#333', style: 'dashed'},
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 55, y: 18}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Slip action",
+                            purpose: "Punish overplay on screens",
+                            action: "5 starts to screen for 2 but slips early when chaser hedges. 5 rolls open.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 72, y: 58},
+                                3: {x: 12, y: 45},
+                                4: {x: 88, y: 45},
+                                5: {x: 50, y: 25}
+                            },
+                            movements: [
+                                {type: 'cut', from: {x: 55, y: 55}, to: {x: 50, y: 25}, color: '#333', style: 'dashed'},
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 50, y: 25}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "High post iso",
+                            purpose: "Use numbers advantage",
+                            action: "5 flashes high. 2 stays away. 5 now has 1-on-1 with zone help occupied.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 92, y: 55},
+                                3: {x: 12, y: 45},
+                                4: {x: 88, y: 45},
+                                5: {x: 50, y: 42}
+                            },
+                            movements: [
+                                {type: 'flash', from: {x: 50, y: 25}, to: {x: 50, y: 42}, color: '#333'},
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 50, y: 42}}
+                            ]
+                        }
+                    ],
+                    coaching: [
+                        "Don't force ball to face-guarded player",
+                        "Use screens to free your star, attack zone when star is covered"
+                    ],
+                    redFlags: [
+                        "Constantly trying to get the ball to face-guarded player",
+                        "Ignoring the 4-on-3 advantage elsewhere"
+                    ]
+                },
+                "Triangle and Two": {
+                    recognition: [
+                        "Three defenders in triangle zone (2 top, 1 bottom or vice versa)",
+                        "Two defenders face-guarding your two best scorers",
+                        "Zone collapses when chasers' players are near rim"
+                    ],
+                    weakness: "Three vs two advantage in zone areas",
+                    attacks: [
+                        {
+                            name: "Clear stars, attack zone",
+                            purpose: "Create 3-on-2 advantage",
+                            action: "2 and 4 (face-guarded) clear to corners. 1, 3, 5 attack triangle 3-on-2.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 8, y: 18},
+                                3: {x: 35, y: 52},
+                                4: {x: 92, y: 18},
+                                5: {x: 50, y: 28}
+                            },
+                            movements: [
+                                {type: 'drive', from: {x: 50, y: 72}, to: {x: 50, y: 52}, color: '#333'},
+                                {type: 'pass', from: {x: 50, y: 52}, to: {x: 35, y: 52}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Double screen for shooter",
+                            purpose: "Free best shooter",
+                            action: "3 and 5 set staggered screens for 2. 2 curls for catch and shoot three.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 70, y: 48},
+                                3: {x: 55, y: 55},
+                                4: {x: 92, y: 18},
+                                5: {x: 62, y: 48}
+                            },
+                            movements: [
+                                {type: 'screen', at: {x: 55, y: 55}, color: '#333'},
+                                {type: 'screen', at: {x: 62, y: 48}, color: '#333'},
+                                {type: 'cut', from: {x: 80, y: 62}, to: {x: 70, y: 48}, color: '#333'},
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 70, y: 48}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "High post touch",
+                            purpose: "Attack middle of triangle",
+                            action: "5 catches at free throw line. Stars stay away. 5 has room to operate.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 8, y: 18},
+                                3: {x: 25, y: 55},
+                                4: {x: 92, y: 18},
+                                5: {x: 50, y: 42}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 50, y: 42}},
+                                {type: 'pass', from: {x: 50, y: 42}, to: {x: 25, y: 55}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Screen the screener",
+                            purpose: "Create confusion for chasers",
+                            action: "3 screens for 2, then 5 screens for 3. Both chasers struggle to navigate.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 68, y: 48},
+                                3: {x: 75, y: 55},
+                                4: {x: 88, y: 45},
+                                5: {x: 62, y: 52}
+                            },
+                            movements: [
+                                {type: 'screen', at: {x: 60, y: 58}, color: '#333'},
+                                {type: 'cut', from: {x: 78, y: 62}, to: {x: 68, y: 48}, color: '#333'},
+                                {type: 'screen', at: {x: 62, y: 52}, color: '#333'},
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 68, y: 48}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Slip to rim",
+                            purpose: "Attack rim when chasers focus on ball",
+                            action: "5 sets screen, slips when chasers hedge. 5 rolls to rim for layup.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 75, y: 58},
+                                3: {x: 12, y: 45},
+                                4: {x: 88, y: 45},
+                                5: {x: 50, y: 18}
+                            },
+                            movements: [
+                                {type: 'cut', from: {x: 48, y: 58}, to: {x: 50, y: 18}, color: '#333', style: 'dashed'},
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 50, y: 18}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Skip to star in rhythm",
+                            purpose: "Free shooter off movement",
+                            action: "2 uses pin down screen. 1 skips to 2 for catch and shoot.",
+                            positions: {
+                                1: {x: 35, y: 70, ball: true},
+                                2: {x: 85, y: 48},
+                                3: {x: 12, y: 45},
+                                4: {x: 78, y: 55},
+                                5: {x: 50, y: 28}
+                            },
+                            movements: [
+                                {type: 'screen', at: {x: 78, y: 52}, color: '#333'},
+                                {type: 'cut', from: {x: 82, y: 62}, to: {x: 85, y: 48}, color: '#333'},
+                                {type: 'pass', from: {x: 35, y: 70}, to: {x: 85, y: 48}, style: 'dashed'}
+                            ]
+                        }
+                    ],
+                    coaching: [
+                        "Attack the triangle zone, don't just free the stars",
+                        "Use staggered screens to create separation"
+                    ],
+                    redFlags: [
+                        "Letting face-guarded players dominate touches",
+                        "Ignoring the numbers advantage in the zone"
+                    ]
+                },
+                "Match-Up Zone": {
+                    recognition: [
+                        "Looks like man but defenders switch on every cut",
+                        "Zone principles on ball screens",
+                        "Help is more aggressive than standard man"
+                    ],
+                    weakness: "Screening actions create confusion",
+                    attacks: [
+                        {
+                            name: "Screen confusion",
+                            purpose: "Create switching problems",
+                            action: "5 screens for 3. If they switch, 5 has mismatch. If not, 3 is open.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 22, y: 48},
+                                4: {x: 88, y: 45},
+                                5: {x: 28, y: 52}
+                            },
+                            movements: [
+                                {type: 'screen', at: {x: 28, y: 52}, color: '#333'},
+                                {type: 'cut', from: {x: 15, y: 52}, to: {x: 22, y: 48}, color: '#333'},
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 22, y: 48}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Flare action",
+                            purpose: "Create catch and shoot",
+                            action: "4 sets flare for 2. Zone struggles to close out on flares.",
+                            positions: {
+                                1: {x: 35, y: 70, ball: true},
+                                2: {x: 85, y: 52},
+                                3: {x: 12, y: 45},
+                                4: {x: 78, y: 55},
+                                5: {x: 50, y: 28}
+                            },
+                            movements: [
+                                {type: 'screen', at: {x: 78, y: 55}, color: '#333'},
+                                {type: 'cut', from: {x: 75, y: 62}, to: {x: 85, y: 52}, color: '#333'},
+                                {type: 'pass', from: {x: 35, y: 70}, to: {x: 85, y: 52}}
+                            ]
+                        },
+                        {
+                            name: "Post iso after switch",
+                            purpose: "Exploit mismatch",
+                            action: "After screen creates switch, 5 seals smaller defender in post.",
+                            positions: {
+                                1: {x: 50, y: 72},
+                                2: {x: 75, y: 65},
+                                3: {x: 18, y: 50, ball: true},
+                                4: {x: 88, y: 45},
+                                5: {x: 38, y: 28}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 18, y: 50}, to: {x: 38, y: 28}}
+                            ]
+                        },
+                        {
+                            name: "Quick ball reversal",
+                            purpose: "Beat zone rotations",
+                            action: "Reverse ball quickly before match-up can adjust assignments.",
+                            positions: {
+                                1: {x: 35, y: 70, ball: true},
+                                2: {x: 68, y: 68},
+                                3: {x: 12, y: 45},
+                                4: {x: 88, y: 48},
+                                5: {x: 50, y: 28}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 35, y: 70}, to: {x: 68, y: 68}},
+                                {type: 'pass', from: {x: 68, y: 68}, to: {x: 88, y: 48}}
+                            ]
+                        },
+                        {
+                            name: "High-low action",
+                            purpose: "Interior scoring",
+                            action: "5 catches at elbow. 4 ducks in opposite block. 5 hits 4 for layup.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 12, y: 45},
+                                4: {x: 62, y: 25},
+                                5: {x: 40, y: 48}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 40, y: 48}},
+                                {type: 'cut', from: {x: 88, y: 45}, to: {x: 62, y: 25}, color: '#333'},
+                                {type: 'pass', from: {x: 40, y: 48}, to: {x: 62, y: 25}}
+                            ]
+                        },
+                        {
+                            name: "Backdoor vs overplay",
+                            purpose: "Punish aggressive matching",
+                            action: "3 lifts, defender overplays to match. 3 plants and backdoors.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 75, y: 65},
+                                3: {x: 42, y: 15},
+                                4: {x: 88, y: 45},
+                                5: {x: 30, y: 22}
+                            },
+                            movements: [
+                                {type: 'cut', from: {x: 15, y: 48}, to: {x: 20, y: 55}, color: '#333'},
+                                {type: 'cut', from: {x: 20, y: 55}, to: {x: 42, y: 15}, color: '#333', style: 'dashed'},
+                                {type: 'pass', from: {x: 50, y: 72}, to: {x: 42, y: 15}, style: 'dashed'}
+                            ]
+                        }
+                    ],
+                    coaching: [
+                        "Use screening actions to force difficult switches",
+                        "Post mismatches immediately after screens"
+                    ],
+                    redFlags: [
+                        "Playing straight up one-on-one against the match-up",
+                        "Standing around waiting for openings"
+                    ]
+                },
+                "Full Court Press": {
+                    recognition: [
+                        "Immediate ball pressure after made baskets",
+                        "Traps at sideline or half-court",
+                        "Looking to create turnovers and speed you up"
+                    ],
+                    weakness: "Aggressive help leaves players open up court",
+                    attacks: [
+                        {
+                            name: "Quick middle break",
+                            purpose: "Attack before press sets",
+                            action: "1 catches inbound and immediately attacks middle. 2 and 4 fill wings.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 25, y: 50},
+                                3: {x: 75, y: 50},
+                                4: {x: 88, y: 25},
+                                5: {x: 12, y: 25}
+                            },
+                            movements: [
+                                {type: 'drive', from: {x: 50, y: 72}, to: {x: 50, y: 48}, color: '#333'},
+                                {type: 'pass', from: {x: 50, y: 48}, to: {x: 25, y: 30}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Reverse to weak side",
+                            purpose: "Use the whole court",
+                            action: "Ball reverses to 3 on weak side away from pressure. 3 attacks in space.",
+                            positions: {
+                                1: {x: 35, y: 70, ball: true},
+                                2: {x: 12, y: 55},
+                                3: {x: 88, y: 55},
+                                4: {x: 88, y: 25},
+                                5: {x: 12, y: 25}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 35, y: 70}, to: {x: 88, y: 55}, style: 'dashed'},
+                                {type: 'drive', from: {x: 88, y: 55}, to: {x: 75, y: 38}, color: '#333'}
+                            ]
+                        },
+                        {
+                            name: "Split the trap",
+                            purpose: "Turn trap into advantage",
+                            action: "When trapped, 1 splits defenders with dribble. 3 fills behind as release.",
+                            positions: {
+                                1: {x: 40, y: 68, ball: true},
+                                2: {x: 25, y: 55},
+                                3: {x: 55, y: 72},
+                                4: {x: 88, y: 35},
+                                5: {x: 12, y: 35}
+                            },
+                            movements: [
+                                {type: 'drive', from: {x: 40, y: 68}, to: {x: 50, y: 55}, color: '#333'},
+                                {type: 'cut', from: {x: 55, y: 72}, to: {x: 45, y: 65}, color: '#333'}
+                            ]
+                        },
+                        {
+                            name: "Long diagonal",
+                            purpose: "Punish trapping with skip pass",
+                            action: "When trap commits, 1 skips long diagonal to 4 for numbers advantage.",
+                            positions: {
+                                1: {x: 25, y: 65, ball: true},
+                                2: {x: 50, y: 72},
+                                3: {x: 50, y: 50},
+                                4: {x: 85, y: 32},
+                                5: {x: 25, y: 32}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 25, y: 65}, to: {x: 85, y: 32}, style: 'dashed'},
+                                {type: 'drive', from: {x: 85, y: 32}, to: {x: 70, y: 20}, color: '#333'}
+                            ]
+                        },
+                        {
+                            name: "Outlet and run",
+                            purpose: "Fast break opportunity",
+                            action: "5 seals and receives outlet. 2 and 4 sprint to rim for layup.",
+                            positions: {
+                                1: {x: 50, y: 80, ball: true},
+                                2: {x: 30, y: 35},
+                                3: {x: 65, y: 60},
+                                4: {x: 70, y: 35},
+                                5: {x: 50, y: 55}
+                            },
+                            movements: [
+                                {type: 'pass', from: {x: 50, y: 80}, to: {x: 50, y: 55}},
+                                {type: 'cut', from: {x: 30, y: 35}, to: {x: 40, y: 15}, color: '#333', style: 'dashed'},
+                                {type: 'pass', from: {x: 50, y: 55}, to: {x: 40, y: 15}, style: 'dashed'}
+                            ]
+                        },
+                        {
+                            name: "Ball screen break",
+                            purpose: "Create advantage at half court",
+                            action: "5 sprints to set ball screen at half court. 1 uses and attacks downhill.",
+                            positions: {
+                                1: {x: 50, y: 72, ball: true},
+                                2: {x: 25, y: 45},
+                                3: {x: 75, y: 45},
+                                4: {x: 88, y: 25},
+                                5: {x: 45, y: 62}
+                            },
+                            movements: [
+                                {type: 'screen', at: {x: 45, y: 62}, color: '#333'},
+                                {type: 'drive', from: {x: 50, y: 72}, to: {x: 50, y: 45}, color: '#333'},
+                                {type: 'cut', from: {x: 45, y: 62}, to: {x: 50, y: 25}, color: '#333', style: 'dashed'}
+                            ]
+                        }
+                    ],
+                    coaching: [
+                        "Don't panic - see the floor before making decisions",
+                        "Middle of the floor is the safest path through pressure"
+                    ],
+                    redFlags: [
+                        "Rushing and making careless passes",
+                        "Turning back into pressure instead of advancing"
+                    ]
+                }
+            };
+
+            const defenseNames = Object.keys(playbook);
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-4">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="mb-8 text-center">
+                            <h1 className="bebas text-5xl md:text-6xl font-bold mb-2 tracking-wide" style={{color: '#f97316'}}>
+                                Butte Core Basketball
+                            </h1>
+                            <p className="text-slate-400 text-lg">4-Out 1-In Motion Offense vs 10 Defenses</p>
+                            <div className="mt-4 text-sm text-slate-500 max-w-2xl mx-auto">
+                                <p className="mb-2"><span className="text-orange-400 font-semibold">Alignment:</span> Guards at slots • Wings at foul line extended • Big at dunker spot</p>
+                                <p><span className="text-orange-400 font-semibold">Philosophy:</span> Drive and kick • Punish rotations • Rhythm threes • Quick decisions</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div className="lg:col-span-1 space-y-3">
+                                <h2 className="bebas text-2xl mb-4 tracking-wide" style={{color: '#f97316'}}>Select Defense</h2>
+                                {defenseNames.map((defense) => (
+                                    <button
+                                        key={defense}
+                                        onClick={() => {
+                                            setSelectedDefense(defense);
+                                            setSelectedPlay(null);
+                                        }}
+                                        className={`w-full text-left p-4 rounded-lg transition-all ${
+                                            selectedDefense === defense
+                                                ? 'bg-gradient-to-r from-orange-500 to-red-600 shadow-lg scale-105'
+                                                : 'bg-slate-800 hover:bg-slate-700 border border-slate-700'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-semibold">{defense}</span>
+                                            <ChevronRight />
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+
+                            {selectedDefense && (
+                                <div className="lg:col-span-2 space-y-6">
+                                    <div className="bg-slate-800 rounded-lg p-6 space-y-4 border border-slate-700">
+                                        <h2 className="bebas text-3xl tracking-wide" style={{color: '#f97316'}}>{selectedDefense}</h2>
+                                        
+                                        <div className="space-y-3">
+                                            <div className="flex items-start gap-3">
+                                                <div className="mt-1"><Target /></div>
+                                                <div>
+                                                    <h3 className="font-semibold text-blue-400 mb-2">Recognition Keys:</h3>
+                                                    <ul className="space-y-1 text-sm text-slate-300">
+                                                        {playbook[selectedDefense].recognition.map((key, i) => (
+                                                            <li key={i}>• {key}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-start gap-3">
+                                                <div className="mt-1"><AlertCircle /></div>
+                                                <div>
+                                                    <h3 className="font-semibold text-red-400 mb-1">Primary Weakness:</h3>
+                                                    <p className="text-sm text-slate-300">{playbook[selectedDefense].weakness}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <h3 className="bebas text-2xl mb-4 tracking-wide text-green-400">Attacks</h3>
+                                        <div className="grid gap-4">
+                                            {playbook[selectedDefense].attacks.map((attack, i) => (
+                                                <button
+                                                    key={i}
+                                                    onClick={() => setSelectedPlay(attack)}
+                                                    className={`text-left p-4 rounded-lg transition-all border ${
+                                                        selectedPlay === attack
+                                                            ? 'bg-gradient-to-r from-green-600 to-emerald-700 shadow-lg border-green-500'
+                                                            : 'bg-slate-800 hover:bg-slate-700 border-slate-700'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-start justify-between gap-4">
+                                                        <div className="flex-1">
+                                                            <h4 className="font-bold text-lg mb-1">{i + 1}. {attack.name}</h4>
+                                                            <p className="text-sm text-slate-300 mb-2">
+                                                                <span className="text-yellow-400">Purpose:</span> {attack.purpose}
+                                                            </p>
+                                                            <p className="text-sm text-slate-400">{attack.action}</p>
+                                                        </div>
+                                                        <ChevronRight />
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {selectedPlay && (
+                                        <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                                            <h3 className="bebas text-2xl mb-4 tracking-wide text-purple-400">Play Diagram</h3>
+                                            <div className="bg-white rounded-lg p-2 mb-4">
+                                                <Court play={selectedPlay} />
+                                            </div>
+                                            <div className="space-y-2 text-sm">
+                                                <div className="grid grid-cols-2 gap-4 text-slate-300">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-6 h-6 rounded-full border-2 border-slate-400 flex items-center justify-center text-xs font-bold text-slate-400">1</div>
+                                                        <span>Point Guard</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-6 h-6 rounded-full border-2 border-slate-400 flex items-center justify-center text-xs font-bold text-slate-400">2</div>
+                                                        <span>Shooting Guard</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-6 h-6 rounded-full border-2 border-slate-400 flex items-center justify-center text-xs font-bold text-slate-400">3</div>
+                                                        <span>Wing (SF)</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-6 h-6 rounded-full border-2 border-slate-400 flex items-center justify-center text-xs font-bold text-slate-400">4</div>
+                                                        <span>Wing (PF)</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-6 h-6 rounded-full border-2 border-slate-400 flex items-center justify-center text-xs font-bold text-slate-400">5</div>
+                                                        <span>Big (Center)</span>
+                                                    </div>
+                                                </div>
+                                                <div className="border-t border-slate-700 pt-3 mt-3">
+                                                    <div className="flex flex-wrap items-center gap-4 text-slate-400">
+                                                        <div className="flex items-center gap-2">
+                                                            <svg width="30" height="10"><line x1="0" y1="5" x2="25" y2="5" stroke="#fbbf24" strokeWidth="2" strokeDasharray="4,3"/></svg>
+                                                            <span>Pass</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <svg width="30" height="12"><path d="M 0 10 Q 12 0 25 6" fill="none" stroke="#333" strokeWidth="2"/></svg>
+                                                            <span>Cut/Drive</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <svg width="30" height="10"><line x1="5" y1="5" x2="25" y2="5" stroke="#333" strokeWidth="3" strokeLinecap="round"/></svg>
+                                                            <span>Screen</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="bg-slate-800 rounded-lg p-6 space-y-4 border border-slate-700">
+                                        <div className="flex items-start gap-3">
+                                            <div className="mt-1 text-green-400"><CheckCircle /></div>
+                                            <div>
+                                                <h3 className="font-semibold text-green-400 mb-2">Coaching Points:</h3>
+                                                <ul className="space-y-1 text-sm text-slate-300">
+                                                    {playbook[selectedDefense].coaching.map((point, i) => (
+                                                        <li key={i}>• {point}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-start gap-3">
+                                            <div className="mt-1 text-yellow-400"><AlertCircle /></div>
+                                            <div>
+                                                <h3 className="font-semibold text-yellow-400 mb-2">Red Flags:</h3>
+                                                <ul className="space-y-1 text-sm text-slate-300">
+                                                    {playbook[selectedDefense].redFlags.map((flag, i) => (
+                                                        <li key={i}>• {flag}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {!selectedDefense && (
+                                <div className="lg:col-span-2 flex items-center justify-center h-96">
+                                    <div className="text-center text-slate-400">
+                                        <div className="flex justify-center mb-4"><Target /></div>
+                                        <p className="text-lg">Select a defense to view attacks and diagrams</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<BasketballPlaybook />, document.getElementById('root'));
+    </script>
+</body>
+</html>
